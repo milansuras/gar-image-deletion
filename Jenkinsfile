@@ -1,14 +1,19 @@
 pipeline {
     agent any
-
+    
     environment {
-        GAR_LOCATION = 'asia-south1-docker.pkg.dev'
-        PROJECT_ID = 'milan-dev-451317'  // Ensure this is correct
-        REPOSITORY = 'jenkins-cicd-satck'  // Fix the typo if needed
-        IMAGE_NAME = 'react-todo'  // Change this if needed
+        
+        GAR_LOCATION = 'us-central1-docker.pkg.dev'
+        PROJECT_ID = 'milan-dev-451317' 
+        REPOSITORY = 'jenkins-cicd-stack'
     }
-
-    stages {
+    
+    triggers {
+        // Run every minute
+        cron('* * * * *')
+    }
+    
+     stages {
         stage('Authenticate to GCP') {
             steps {
                 withCredentials([file(credentialsId: 'gcp-credentials', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
@@ -19,37 +24,61 @@ pipeline {
                 }
             }
         }
-
-        stage('List and Delete Old Image Tags') {
+        stage('Clean All Services') {
             steps {
                 script {
-                    def imageTags = sh(
-                        script: """
-                            gcloud artifacts docker tags list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME} --format='value(tag)' || echo ""
-                        """,
-                        returnStdout: true
-                    ).trim().split("\n")
-
-                    if (imageTags.isEmpty() || imageTags[0] == "") {
-                        echo "No images found in ${IMAGE_NAME} repository."
-                        return
-                    }
-
-                    for (tag in imageTags) {
-                        if (tag != "latest") {
-                            echo "Deleting image: ${IMAGE_NAME}:${tag}"
-                            sh """
-                                DIGEST=$(gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME} --filter="tags=${tag}" --format="value(DIGEST)")
-                                if [[ -n "$DIGEST" ]]; then
-                                    gcloud artifacts docker images delete ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}@$DIGEST --quiet --delete-tags
-                                else
-                                    echo "No digest found for tag ${tag}, skipping..."
-                                fi
-                            """
+                    def services = ['react-todo', 'java-springboot', 'flask']
+                    
+                    services.each { service ->
+                        echo "Processing ${service} folder"
+                        
+                        // Get list of all images in the service folder
+                        def images = sh(
+                            script: """
+                                gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${service} \
+                                --format='get(version)' \
+                                --include-tags
+                            """,
+                            returnStdout: true
+                        ).trim()
+                        
+                        // Process each image
+                        images.split('\n').each { imageLine ->
+                            if (imageLine) {
+                                def hasLatestTag = sh(
+                                    script: """
+                                        gcloud artifacts docker tags list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${service} \
+                                        --filter="version=${imageLine}" \
+                                        --format="get(tags)" | grep -q "latest" || echo "no_latest"
+                                    """,
+                                    returnStdout: true
+                                ).trim()
+                                
+                                // If image doesn't have latest tag, delete it
+                                if (hasLatestTag == "no_latest") {
+                                    echo "Deleting image without latest tag: ${imageLine}"
+                                    sh """
+                                        gcloud artifacts docker images delete \
+                                        ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${service}@${imageLine} \
+                                        --quiet
+                                    """
+                                } else {
+                                    echo "Keeping image with latest tag: ${imageLine}"
+                                }
+                            }
                         }
                     }
                 }
             }
+        }
+    }
+    
+    post {
+        success {
+            echo "Successfully cleaned up images in all folders"
+        }
+        failure {
+            echo "Failed to clean up images"
         }
     }
 }
