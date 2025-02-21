@@ -3,9 +3,9 @@ pipeline {
 
     environment {
         GAR_LOCATION = 'asia-south1-docker.pkg.dev'
-        PROJECT_ID = 'milan-dev-451317'  // Replace with your project ID
-        REPOSITORY = 'jenkins-cicd-satck'  // Your GAR repository name
-        IMAGE_NAME = 'java-springboot'  // Change this if needed
+        PROJECT_ID = 'milan-dev-451317'  // Ensure this is correct
+        REPOSITORY = 'jenkins-cicd-satck'  // Fix the typo if needed
+        IMAGE_NAME = 'react-todo'  // Change this if needed
     }
 
     stages {
@@ -25,12 +25,12 @@ pipeline {
                 script {
                     def imageTags = sh(
                         script: """
-                            gcloud artifacts docker tags list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME} --format='value(tag)'
+                            gcloud artifacts docker tags list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME} --format='value(tag)' || echo ""
                         """,
                         returnStdout: true
                     ).trim().split("\n")
 
-                    if (imageTags.size() == 0) {
+                    if (imageTags.isEmpty() || imageTags[0] == "") {
                         echo "No images found in ${IMAGE_NAME} repository."
                         return
                     }
@@ -39,8 +39,12 @@ pipeline {
                         if (tag != "latest") {
                             echo "Deleting image: ${IMAGE_NAME}:${tag}"
                             sh """
-                                DIGEST=\$(gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME} --filter="tags=${tag}" --format="value(DIGEST)")
-                                gcloud artifacts docker images delete ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}@\${DIGEST} --quiet --delete-tags
+                                DIGEST=$(gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME} --filter="tags=${tag}" --format="value(DIGEST)")
+                                if [[ -n "$DIGEST" ]]; then
+                                    gcloud artifacts docker images delete ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}@$DIGEST --quiet --delete-tags
+                                else
+                                    echo "No digest found for tag ${tag}, skipping..."
+                                fi
                             """
                         }
                     }
