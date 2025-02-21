@@ -39,7 +39,8 @@ pipeline {
                         if (tag != "latest") {
                             echo "Deleting image: ${IMAGE_NAME}:${tag}"
                             sh """
-                                gcloud artifacts docker images delete ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}@$(gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME} --filter="tags:${tag}" --format="value(DIGEST)") --quiet --delete-tags
+                                DIGEST=\$(gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME} --filter="tags=${tag}" --format="value(DIGEST)")
+                                gcloud artifacts docker images delete ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}@\${DIGEST} --quiet --delete-tags
                             """
                         }
                     }
