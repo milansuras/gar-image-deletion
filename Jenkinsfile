@@ -8,10 +8,10 @@ pipeline {
         REPOSITORY = 'jenkins-cicd-stack'
     }
     
-    triggers {
+    //triggers {
         // Run every minute
-        cron('* * * * *')
-    }
+     //   cron('* * * * *')
+   // }
     
      stages {
         stage('Authenticate to GCP') {
