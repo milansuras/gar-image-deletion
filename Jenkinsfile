@@ -12,12 +12,11 @@ pipeline {
         stage("Image Deletion") {
             steps {
                 sh """
-                gcloud auth list
                 gcloud artifacts docker tags list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} --format="value(DIGEST)" > digest.txt
 
 
                 """
             }
         }
-    }
 }
+
