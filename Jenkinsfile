@@ -16,9 +16,7 @@ pipeline {
                 gcloud artifacts docker tags   list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} 
 
                  def latestDigest = sh(
-                        script: """
-                        gcloud artifacts docker tags list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} --format='value(DIGEST)' --filter="TAG=latest"
-                        """,
+                        script: """gcloud artifacts docker tags list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} --format='value(DIGEST)' --filter="TAG=latest" """,
                         returnStdout: true
                     ).trim()
 
