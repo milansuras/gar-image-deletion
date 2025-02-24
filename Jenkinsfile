@@ -1,46 +1,26 @@
-pipeline {
+pipeline{
     agent any
 
+
     environment {
-        GAR_LOCATION = 'asia-south1-docker.pkg.dev'
-        PROJECT_ID = 'milan-dev-451317'
-        REPOSITORY = 'jenkins-cicd-stack'
+        GAR_LOCATION = "asia-south1-docker.pkg.dev"
+        PROJECT_ID   = "milan-dev-451317"
+        REPOSITORY   = "jenkins-cicd-satck"
+        IMAGE        =  "java-backend"
     }
 
-    stages {
-        stage('Authenticate Docker') {             
-            steps {                 
-                withCredentials([file(credentialsId: 'gcp-credentials', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {                     
-                    sh """                         
-                        gcloud auth activate-service-account --key-file=${GOOGLE_APPLICATION_CREDENTIALS}                         
-                        gcloud auth configure-docker ${GAR_LOCATION} --quiet                     
-                    """                 
-                }             
-            }         
-        }
 
-        stage('Find and Delete Non-Latest Images') {
+    stages{
+        stage("Image Deletion"){
             steps {
-                script {
-                    def services = ["java-backend", "python-backend", "react-frontend"]
+                sh """
 
-                    for (service in services) {
-                        sh """ 
-                            echo "Checking images for service: ${service}"
-                            
-                            # List all images and filter non-latest ones correctly
-                            gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY} \
-                                --format="value(digest,tags)" | while read digest tags; do
+                gcloud artifacts docker tags list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} --format="value(DIGEST)" > digest.txt
 
-                                # If the tags column does not contain 'latest', delete the image
-                                if [[ "\$tags" != *"latest"* && -n "\$digest" ]]; then
-                                    echo "Deleting image with digest: \$digest"
-                                    gcloud artifacts docker images delete ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${service}@\$digest --quiet --delete-tags || true
-                                fi
-                            done
-                        """
-                    }
-                }
+                cat digest.txt
+                
+
+                """
             }
         }
     }
