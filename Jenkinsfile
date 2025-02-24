@@ -1,4 +1,4 @@
-pipeline {
+pipeline { 
     agent any
 
     environment {
@@ -14,7 +14,7 @@ pipeline {
                 sh """
                 gcloud artifacts docker image list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} 
 
-               
+               """
             }
         }
     }
