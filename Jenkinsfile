@@ -28,14 +28,12 @@ pipeline {
                         sh """ 
                             echo "Checking images for service: ${service}"
                             
-                            # Get all image digests and their tags
+                            # List all images and filter non-latest ones correctly
                             gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY} \
-                                --format="value(digest,tags)" | while read -r digest tags; do
+                                --format="value(digest,tags)" | while read digest tags; do
 
-                                echo "$digest"
-                                echo "$tags"
-                                
-                                if [[ "\$tags" != *"latest"* ]]; then
+                                # If the tags column does not contain 'latest', delete the image
+                                if [[ "\$tags" != *"latest"* && -n "\$digest" ]]; then
                                     echo "Deleting image with digest: \$digest"
                                     gcloud artifacts docker images delete ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${service}@\$digest --quiet --delete-tags || true
                                 fi
@@ -47,4 +45,3 @@ pipeline {
         }
     }
 }
-
