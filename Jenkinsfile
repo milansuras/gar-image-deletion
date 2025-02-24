@@ -12,7 +12,7 @@ pipeline {
         stage("Image Deletion") {
             steps {
                 sh """
-                gcloud artifacts docker image list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} 
+                gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} 
 
                """
             }
