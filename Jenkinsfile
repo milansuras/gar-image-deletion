@@ -30,11 +30,12 @@ pipeline {
                     
                     echo "Tags output: ${tagsOutput}"
                     
+                    // Initialize variables properly
+                    env.LATEST_DIGEST = ""
+                    def nonLatestTags = []
+                    
                     // Parse the output to extract information about all tags
                     def lines = tagsOutput.split("\n")
-                    env.LATEST_DIGEST = ""
-                    env.NON_LATEST_TAGS = []
-                    
                     // Skip header lines (typically first two lines)
                     for (int i = 2; i < lines.size(); i++) {
                         def line = lines[i].trim()
@@ -48,13 +49,16 @@ pipeline {
                                     env.LATEST_DIGEST = digest
                                     echo "Found latest tag with digest: ${digest}"
                                 } else {
-                                    // Store non-latest tags for later removal
-                                    env.NON_LATEST_TAGS.add([tag: tag, digest: digest])
+                                    // Store non-latest tags
+                                    nonLatestTags.add(tag)
                                     echo "Found non-latest tag: ${tag} with digest: ${digest}"
                                 }
                             }
                         }
                     }
+                    
+                    // Store non-latest tags as a comma-separated string
+                    env.NON_LATEST_TAGS = nonLatestTags.join(',')
                     
                     echo "Latest image digest: ${env.LATEST_DIGEST}"
                     echo "Non-latest tags: ${env.NON_LATEST_TAGS}"
@@ -70,10 +74,15 @@ pipeline {
         stage("Remove Non-Latest Tags") {
             steps {
                 script {
-                    // Remove all non-latest tags first
-                    env.NON_LATEST_TAGS.each { tagInfo ->
-                        echo "Removing tag: ${tagInfo.tag}"
-                        sh "gcloud artifacts docker tags delete ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}:${tagInfo.tag} --quiet"
+                    // If there are non-latest tags, remove them
+                    if (env.NON_LATEST_TAGS) {
+                        def tagsList = env.NON_LATEST_TAGS.split(',')
+                        tagsList.each { tag ->
+                            echo "Removing tag: ${tag}"
+                            sh "gcloud artifacts docker tags delete ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}:${tag} --quiet"
+                        }
+                    } else {
+                        echo "No non-latest tags to remove"
                     }
                 }
             }
