@@ -9,23 +9,20 @@ pipeline {
     }
 
     stages {
-        stage("Image Deletion") {
+        stage("List Images and Tags") {
             steps {
                 sh """
-                gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} 
-                gcloud artifacts docker tags   list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} 
-
-                
-
-               """
+                echo "Listing all images and tags:"
+                gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}
+                gcloud artifacts docker tags list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}
+                """
             }
         }
-
-
-         stage("Get Latest Image Digest") {
+        
+        stage("Identify Latest Image") {
             steps {
                 script {
-                    
+                    // Get the full output of tags to parse
                     def tagsOutput = sh(
                         script: "gcloud artifacts docker tags list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}",
                         returnStdout: true
@@ -33,55 +30,102 @@ pipeline {
                     
                     echo "Tags output: ${tagsOutput}"
                     
-                    
+                    // Parse the output to extract information about all tags
                     def lines = tagsOutput.split("\n")
                     env.LATEST_DIGEST = ""
+                    env.NON_LATEST_TAGS = []
                     
-                    for (line in lines) {
-                        if (line.contains("latest")) {
-                            
-                            def parts = line.trim().split("\\s+")
+                    // Skip header lines (typically first two lines)
+                    for (int i = 2; i < lines.size(); i++) {
+                        def line = lines[i].trim()
+                        if (line) {
+                            def parts = line.split("\\s+")
                             if (parts.length >= 3) {
-                                def digestPart = parts[2]
-                                if (digestPart.startsWith("sha256:")) {
-                                    env.LATEST_DIGEST = digestPart
-                                    break
+                                def tag = parts[0]
+                                def digest = parts[2]
+                                
+                                if (tag == "latest") {
+                                    env.LATEST_DIGEST = digest
+                                    echo "Found latest tag with digest: ${digest}"
+                                } else {
+                                    // Store non-latest tags for later removal
+                                    env.NON_LATEST_TAGS.add([tag: tag, digest: digest])
+                                    echo "Found non-latest tag: ${tag} with digest: ${digest}"
                                 }
                             }
                         }
                     }
                     
                     echo "Latest image digest: ${env.LATEST_DIGEST}"
+                    echo "Non-latest tags: ${env.NON_LATEST_TAGS}"
                     
+                    // Check if we got a valid digest
                     if (!env.LATEST_DIGEST) {
-                        error "Failed to retrieve the digest for the 'latest' tag. Aborting to prevent accidental deletion of all images."
+                        error "Failed to identify the 'latest' tag. Aborting to prevent accidental deletion of all images."
                     }
                 }
             }
         }
-
-
-        stage("Delete Non-Latest Images") {
+        
+        stage("Remove Non-Latest Tags") {
             steps {
                 script {
-                    // Get all image digests
-                    def allDigests = sh(
-                        script: "gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} --format='value(DIGEST)'",
+                    // Remove all non-latest tags first
+                    env.NON_LATEST_TAGS.each { tagInfo ->
+                        echo "Removing tag: ${tagInfo.tag}"
+                        sh "gcloud artifacts docker tags delete ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}:${tagInfo.tag} --quiet"
+                    }
+                }
+            }
+        }
+        
+        stage("Delete Untagged Images") {
+            steps {
+                script {
+                    // Now get all images again - some may be untagged now
+                    def imagesOutput = sh(
+                        script: "gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}",
                         returnStdout: true
-                    ).trim().split("\n")
+                    ).trim()
                     
-                    echo "Found ${allDigests.size()} images in the repository"
+                    echo "Images after tag removal: ${imagesOutput}"
                     
-                    // Loop through all digests and delete those that don't match the latest
-                    allDigests.each { digest ->
-                        if (digest != env.LATEST_DIGEST) {
-                            echo "Deleting image with digest: ${digest}"
-                            sh "gcloud artifacts docker images delete ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}@${digest} --quiet"
-                        } else {
-                            echo "Preserving latest image with digest: ${digest}"
+                    // Parse to get all digests
+                    def lines = imagesOutput.split("\n")
+                    
+                    // Skip header lines (typically first two lines)
+                    for (int i = 2; i < lines.size(); i++) {
+                        def line = lines[i].trim()
+                        if (line) {
+                            def parts = line.split("\\s+")
+                            if (parts.length >= 2) {
+                                def digest = parts[1]
+                                
+                                if (digest != env.LATEST_DIGEST) {
+                                    echo "Attempting to delete image with digest: ${digest}"
+                                    try {
+                                        sh "gcloud artifacts docker images delete ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}@${digest} --quiet"
+                                        echo "Successfully deleted image with digest: ${digest}"
+                                    } catch (Exception e) {
+                                        echo "Warning: Failed to delete image with digest: ${digest}. It might still have tags or be referenced by other images."
+                                    }
+                                } else {
+                                    echo "Preserving latest image with digest: ${digest}"
+                                }
+                            }
                         }
                     }
                 }
+            }
+        }
+        
+        stage("Verify Results") {
+            steps {
+                sh """
+                echo "Verifying remaining images and tags:"
+                gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}
+                gcloud artifacts docker tags list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}
+                """
             }
         }
     }
