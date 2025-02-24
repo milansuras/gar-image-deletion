@@ -4,7 +4,7 @@ pipeline {
     environment {
         GAR_LOCATION = 'asia-south1-docker.pkg.dev'
         PROJECT_ID = 'milan-dev-451317'
-        REPOSITORY = 'jenkins-cicd-satck'
+        REPOSITORY = 'jenkins-cicd-stack'
     }
 
     stages {
@@ -26,14 +26,16 @@ pipeline {
 
                     for (service in services) {
                         sh """ 
-                            # Get all image digests excluding the one tagged as 'latest'
-                            NON_LATEST_IMAGES=\$(gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY} \
-                                --format="get(digest,tags)" | grep -v "latest" | awk '{print \$1}' | sort -u)
+                            echo "Checking images for service: ${service}"
                             
-                            # Delete all non-latest images
-                            for digest in \$NON_LATEST_IMAGES; do
-                                echo "Deleting image with digest: \$digest"
-                                gcloud artifacts docker images delete ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${service}@\$digest --quiet || true
+                            # Get all image digests and their tags
+                            gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY} \
+                                --format="value(digest,tags)" | while read -r digest tags; do
+                                
+                                if [[ "\$tags" != *"latest"* ]]; then
+                                    echo "Deleting image with digest: \$digest"
+                                    gcloud artifacts docker images delete ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${service}@\$digest --quiet --delete-tags || true
+                                fi
                             done
                         """
                     }
