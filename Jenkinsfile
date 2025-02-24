@@ -15,19 +15,29 @@ pipeline {
                 gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} 
                 gcloud artifacts docker tags   list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} 
 
-                 script {
-                    def latestDigest = ""
-                    
-                    
-                    latestDigest = sh(
-                        script: "gcloud artifacts docker tags list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} --format='value(DIGEST)' --filter='TAG=latest'",
+                
+
+               """
+            }
+        }
+
+
+         stage("Get Latest Image Digest") {
+            steps {
+                script {
+                    // Get digest of the image tagged as "latest"
+                    env.LATEST_DIGEST = sh(
+                        script: "gcloud artifacts docker tags list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} --format='value(IMAGE_DIGEST)' --filter='TAG=latest'",
                         returnStdout: true
                     ).trim()
                     
-                    // Use the variable within the same script block
-                    echo "Latest image digest: ${latestDigest}"
+                    echo "Latest image digest: ${env.LATEST_DIGEST}"
                     
-               """
+                    // Check if we got a valid digest
+                    if (!env.LATEST_DIGEST) {
+                        error "Failed to retrieve the digest for the 'latest' tag. Aborting to prevent accidental deletion of all images."
+                    }
+                }
             }
         }
     }
