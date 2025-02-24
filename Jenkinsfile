@@ -20,7 +20,7 @@ pipeline{
                 cat digest.txt
 
                 while read digest; do
-                    tags=\$(gcloud artifacts docker tags list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} --filter="digest=\${digest}  --format="value(tag)")
+                    tags=\$(gcloud artifacts docker tags list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} --filter="digest=\${digest}"  --format="value(tag)")
                     if ! echo "\$tags" | grep -q 'latest' ; then 
                         echo "\$digest" >> digest_list.txt
                     fi
@@ -28,7 +28,7 @@ pipeline{
                 done < digest.txt
 
                 cat digest_list.txt
-                
+
 
 
                 """
