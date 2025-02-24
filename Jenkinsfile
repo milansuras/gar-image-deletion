@@ -31,6 +31,9 @@ pipeline {
                             # Get all image digests and their tags
                             gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY} \
                                 --format="value(digest,tags)" | while read -r digest tags; do
+
+                                echo "$digest"
+                                echo "$tags"
                                 
                                 if [[ "\$tags" != *"latest"* ]]; then
                                     echo "Deleting image with digest: \$digest"
