@@ -19,70 +19,70 @@ pipeline {
             }
         }
         
-        stage("Identify Latest Image") {
+        stage("Get Tag Information") {
             steps {
                 script {
-                    // Get the full output of tags to parse
+                    // First, capture the output of the tags list command
                     def tagsOutput = sh(
                         script: "gcloud artifacts docker tags list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}",
                         returnStdout: true
                     ).trim()
                     
-                    echo "Tags output: ${tagsOutput}"
+                    echo "Raw tags output: ${tagsOutput}"
                     
-                    // Initialize variables properly
-                    env.LATEST_DIGEST = ""
-                    def nonLatestTags = []
+                    // Write the output to a temporary file for easier processing
+                    writeFile file: 'tags_output.txt', text: tagsOutput
                     
-                    // Parse the output to extract information about all tags
-                    def lines = tagsOutput.split("\n")
-                    // Skip header lines (typically first two lines)
-                    for (int i = 2; i < lines.size(); i++) {
-                        def line = lines[i].trim()
-                        if (line) {
-                            def parts = line.split("\\s+")
-                            if (parts.length >= 3) {
-                                def tag = parts[0]
-                                def digest = parts[2]
-                                
-                                if (tag == "latest") {
-                                    env.LATEST_DIGEST = digest
-                                    echo "Found latest tag with digest: ${digest}"
-                                } else {
-                                    // Store non-latest tags
-                                    nonLatestTags.add(tag)
-                                    echo "Found non-latest tag: ${tag} with digest: ${digest}"
-                                }
-                            }
-                        }
+                    // Find the latest tag digest using grep
+                    def latestTagLine = sh(
+                        script: "grep -w 'latest' tags_output.txt || echo ''",
+                        returnStdout: true
+                    ).trim()
+                    
+                    echo "Latest tag line: ${latestTagLine}"
+                    
+                    if (latestTagLine) {
+                        // Extract the digest from the line containing "latest"
+                        def latestDigest = sh(
+                            script: "echo '${latestTagLine}' | awk '{print \$3}'",
+                            returnStdout: true
+                        ).trim()
+                        
+                        env.LATEST_DIGEST = latestDigest
+                        echo "Latest digest: ${env.LATEST_DIGEST}"
+                    } else {
+                        error "Could not find a 'latest' tag in the repository."
                     }
                     
-                    // Store non-latest tags as a comma-separated string
-                    env.NON_LATEST_TAGS = nonLatestTags.join(',')
+                    // Find all non-latest tags
+                    def nonLatestTags = sh(
+                        script: "grep -v -w 'latest' tags_output.txt | grep -v '^TAG' | awk '{print \$1}'",
+                        returnStdout: true
+                    ).trim()
                     
-                    echo "Latest image digest: ${env.LATEST_DIGEST}"
-                    echo "Non-latest tags: ${env.NON_LATEST_TAGS}"
-                    
-                    // Check if we got a valid digest
-                    if (!env.LATEST_DIGEST) {
-                        error "Failed to identify the 'latest' tag. Aborting to prevent accidental deletion of all images."
+                    if (nonLatestTags) {
+                        env.NON_LATEST_TAGS = nonLatestTags.replaceAll("\\s+", ",")
+                        echo "Non-latest tags: ${env.NON_LATEST_TAGS}"
+                    } else {
+                        env.NON_LATEST_TAGS = ""
+                        echo "No non-latest tags found."
                     }
                 }
             }
         }
         
         stage("Remove Non-Latest Tags") {
+            when {
+                expression { return env.NON_LATEST_TAGS != "" }
+            }
             steps {
                 script {
-                    // If there are non-latest tags, remove them
-                    if (env.NON_LATEST_TAGS) {
-                        def tagsList = env.NON_LATEST_TAGS.split(',')
-                        tagsList.each { tag ->
+                    def tagsList = env.NON_LATEST_TAGS.split(",")
+                    for (tag in tagsList) {
+                        if (tag) {
                             echo "Removing tag: ${tag}"
                             sh "gcloud artifacts docker tags delete ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}:${tag} --quiet"
                         }
-                    } else {
-                        echo "No non-latest tags to remove"
                     }
                 }
             }
@@ -91,37 +91,22 @@ pipeline {
         stage("Delete Untagged Images") {
             steps {
                 script {
-                    // Now get all images again - some may be untagged now
-                    def imagesOutput = sh(
-                        script: "gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}",
+                    // Get list of all image digests
+                    def allDigests = sh(
+                        script: "gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} | grep -v '^IMAGE' | grep -v '^-' | awk '{print \$2}'",
                         returnStdout: true
-                    ).trim()
+                    ).trim().split("\n")
                     
-                    echo "Images after tag removal: ${imagesOutput}"
-                    
-                    // Parse to get all digests
-                    def lines = imagesOutput.split("\n")
-                    
-                    // Skip header lines (typically first two lines)
-                    for (int i = 2; i < lines.size(); i++) {
-                        def line = lines[i].trim()
-                        if (line) {
-                            def parts = line.split("\\s+")
-                            if (parts.length >= 2) {
-                                def digest = parts[1]
-                                
-                                if (digest != env.LATEST_DIGEST) {
-                                    echo "Attempting to delete image with digest: ${digest}"
-                                    try {
-                                        sh "gcloud artifacts docker images delete ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}@${digest} --quiet"
-                                        echo "Successfully deleted image with digest: ${digest}"
-                                    } catch (Exception e) {
-                                        echo "Warning: Failed to delete image with digest: ${digest}. It might still have tags or be referenced by other images."
-                                    }
-                                } else {
-                                    echo "Preserving latest image with digest: ${digest}"
-                                }
+                    for (digest in allDigests) {
+                        if (digest && digest != env.LATEST_DIGEST) {
+                            echo "Deleting image: ${digest}"
+                            try {
+                                sh "gcloud artifacts docker images delete ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}@${digest} --quiet"
+                            } catch (Exception e) {
+                                echo "Warning: Could not delete image ${digest}. It might have tags or be referenced by another image."
                             }
+                        } else {
+                            echo "Preserving latest image: ${digest}"
                         }
                     }
                 }
