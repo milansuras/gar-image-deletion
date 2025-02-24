@@ -29,6 +29,8 @@ pipeline{
 
                 cat digest_list.txt
 
+                xargs -n 1 -I {} gcloud artifacts docker images delete  "${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}@{}" --delete-tags --quiet < digest_list.txt
+
 
 
                 """
