@@ -17,7 +17,7 @@ pipeline {
 
                 LATEST_DIGEST=\$(gcloud artifacts docker tags list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} --format='value(DIGEST)' --filter="TAG=latest")
 
-                  echo "Latest image digest: \$LATEST_DIGEST"
+                  echo "Latest image digest: $LATEST_DIGEST"
 
                """
             }
