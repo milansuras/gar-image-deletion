@@ -16,11 +16,17 @@ pipeline {
                 gcloud artifacts docker tags   list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} 
 
                  script {
-                    def latestDigest = sh(
+                    def latestDigest = ""
+                    
+                    
+                    latestDigest = sh(
                         script: "gcloud artifacts docker tags list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} --format='value(DIGEST)' --filter='TAG=latest'",
                         returnStdout: true
                     ).trim()
+                    
+                    // Use the variable within the same script block
                     echo "Latest image digest: ${latestDigest}"
+                    
                """
             }
         }
