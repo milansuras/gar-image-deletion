@@ -25,11 +25,33 @@ pipeline {
          stage("Get Latest Image Digest") {
             steps {
                 script {
-                    // Get digest of the image tagged as "latest"
-                    env.LATEST_DIGEST = sh(
-                        script: "gcloud artifacts docker tags list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} --format='value(IMAGE_DIGEST)' --filter='TAG=latest'",
+                    // Alternative approach to get the digest for latest tag
+                    // First, get all tags with their digests
+                    def tagsOutput = sh(
+                        script: "gcloud artifacts docker tags list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}",
                         returnStdout: true
                     ).trim()
+                    
+                    echo "Tags output: ${tagsOutput}"
+                    
+                    // Parse the output to extract the digest for the latest tag
+                    def lines = tagsOutput.split("\n")
+                    env.LATEST_DIGEST = ""
+                    
+                    // Skip the header lines and find the line with "latest"
+                    for (line in lines) {
+                        if (line.contains("latest")) {
+                            // Extract the digest (assuming format like "latest image-path@sha256:digest")
+                            def parts = line.trim().split("\\s+")
+                            if (parts.length >= 3) {
+                                def digestPart = parts[2]
+                                if (digestPart.startsWith("sha256:")) {
+                                    env.LATEST_DIGEST = digestPart
+                                    break
+                                }
+                            }
+                        }
+                    }
                     
                     echo "Latest image digest: ${env.LATEST_DIGEST}"
                     
