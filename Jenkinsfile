@@ -8,15 +8,14 @@ pipeline {
         IMAGE        = "python-backend"
     }
 
-
+    stages {
         stage("Image Deletion") {
             steps {
                 sh """
-                gcloud artifacts docker tags list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} --format="value(DIGEST)" > digest.txt
+                gcloud artifacts docker image list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} 
 
-
-                """
+               
             }
         }
+    }
 }
-
