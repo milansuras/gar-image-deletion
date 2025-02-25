@@ -44,7 +44,7 @@ pipeline {
                     if (latestTagLine) {
                         // Extract the digest from the line containing "latest"
                         def latestDigest = sh(
-                            script: "echo '${latestTagLine}' | awk '{print \$3}'",
+                            script: "echo '${latestTagLine}' | awk '{print \$2}'",
                             returnStdout: true
                         ).trim()
                         
@@ -56,7 +56,7 @@ pipeline {
                     
                     // Find all non-latest tags
                     def nonLatestTags = sh(
-                        script: "grep -v -w 'latest' tags_output.txt | grep -v '^TAG' | awk '{print \$1}'",
+                        script: "grep -v -w 'latest' tags_output.txt | grep -v '^TAG' | awk '{print \$3}'",
                         returnStdout: true
                     ).trim()
                     
