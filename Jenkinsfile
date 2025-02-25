@@ -7,8 +7,14 @@ pipeline {
         REPOSITORY   = "jenkins-cicd-satck"
         IMAGES       = "python-backend,java-backend,react-frontend"
     }
-
+    
     stages {
+        stage('Initialize') {
+            steps {
+                sh 'echo "# Environment Properties" > env.properties'
+            }
+        }
+        
         stage("Process All Repositories") {
             steps {
                 script {
@@ -63,7 +69,9 @@ def processRepository(String imageName) {
                     returnStdout: true
                 ).trim()
                 
-                env["${imageName.toUpperCase().replaceAll('-', '_')}_LATEST_DIGEST"] = latestDigest
+                // Use safe way to set env variables
+                def digestVarName = "${imageName.toUpperCase().replaceAll('-', '_')}_LATEST_DIGEST"
+                sh "echo '${digestVarName}=${latestDigest}' >> env.properties"
                 echo "Latest digest for ${imageName}: ${latestDigest}"
             } else {
                 echo "Warning: Could not find a 'latest' tag in repository ${imageName}. Skipping cleanup."
@@ -76,11 +84,13 @@ def processRepository(String imageName) {
                 returnStdout: true
             ).trim()
             
+            def tagsVarName = "${imageName.toUpperCase().replaceAll('-', '_')}_NON_LATEST_TAGS"
             if (nonLatestTags) {
-                env["${imageName.toUpperCase().replaceAll('-', '_')}_NON_LATEST_TAGS"] = nonLatestTags.replaceAll("\\s+", ",")
-                echo "Non-latest tags for ${imageName}: ${env["${imageName.toUpperCase().replaceAll('-', '_')}_NON_LATEST_TAGS"]}"
+                def formattedTags = nonLatestTags.replaceAll("\\s+", ",")
+                sh "echo '${tagsVarName}=${formattedTags}' >> env.properties"
+                echo "Non-latest tags for ${imageName}: ${formattedTags}"
             } else {
-                env["${imageName.toUpperCase().replaceAll('-', '_')}_NON_LATEST_TAGS"] = ""
+                sh "echo '${tagsVarName}=' >> env.properties"
                 echo "No non-latest tags found for ${imageName}."
             }
         }
@@ -90,8 +100,12 @@ def processRepository(String imageName) {
         script {
             def nonLatestTagsVar = "${imageName.toUpperCase().replaceAll('-', '_')}_NON_LATEST_TAGS"
             
-            if (env[nonLatestTagsVar] && env[nonLatestTagsVar] != "") {
-                def tagsList = env[nonLatestTagsVar].split(",")
+            // Load variables from properties file
+            def props = readProperties file: 'env.properties'
+            def nonLatestTags = props[nonLatestTagsVar]
+            
+            if (nonLatestTags && nonLatestTags != "") {
+                def tagsList = nonLatestTags.split(",")
                 for (tag in tagsList) {
                     if (tag && tag != "TAGS" && tag != "TAG") {  
                         echo "Removing tag: ${tag} from ${imageName}"
@@ -109,7 +123,10 @@ def processRepository(String imageName) {
     stage("Delete Untagged Images for ${imageName}") {
         script {
             def latestDigestVar = "${imageName.toUpperCase().replaceAll('-', '_')}_LATEST_DIGEST"
-            def latestDigest = env[latestDigestVar]
+            
+            // Load variables from properties file
+            def props = readProperties file: 'env.properties'
+            def latestDigest = props[latestDigestVar]
             
             if (!latestDigest) {
                 echo "No latest digest defined for ${imageName}. Skipping untagged image cleanup."
