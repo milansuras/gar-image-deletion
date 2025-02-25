@@ -76,7 +76,7 @@ pipeline {
                 script {
                     // Get list of all image digests
                     def allDigests = sh(
-                        script: "gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} --include-tag | grep -v '^IMAGE' | grep -v '^-' | awk '{print \$2}'",
+                        script: "gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} --include-tags | grep -v '^IMAGE' | grep -v '^-' | awk '{print \$2}'",
                         returnStdout: true
                     ).trim().split("\n")
                     
