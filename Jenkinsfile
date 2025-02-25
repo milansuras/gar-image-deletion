@@ -44,7 +44,7 @@ pipeline {
                     if (latestTagLine) {
                         // Extract the digest from the line containing "latest"
                         def latestDigest = sh(
-                            script: "echo '${latestTagLine}' | awk '{print \$3}'",
+                            script: "echo '${latestTagLine}' | awk '{print \$2}'",
                             returnStdout: true
                         ).trim()
                         
