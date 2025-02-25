@@ -13,7 +13,7 @@ pipeline {
             steps {
                 sh """
                 echo "Listing all images and tags:"
-                gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} --include-tags 
+                gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}
                 gcloud artifacts docker tags list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}
                 """
             }
@@ -44,7 +44,7 @@ pipeline {
                     if (latestTagLine) {
                         // Extract the digest from the line containing "latest"
                         def latestDigest = sh(
-                            script: "echo '${latestTagLine}' | awk '{print \$2}'",
+                            script: "echo '${latestTagLine}' | awk '{print \$3}'",
                             returnStdout: true
                         ).trim()
                         
@@ -56,7 +56,7 @@ pipeline {
                     
                     // Find all non-latest tags
                     def nonLatestTags = sh(
-                        script: "grep -v -w 'latest' tags_output.txt | grep -v '^TAG' | awk '{print \$3}'",
+                        script: "grep -v -w 'latest' tags_output.txt | grep -v '^TAG' | awk '{print \$1}'",
                         returnStdout: true
                     ).trim()
                     
@@ -70,7 +70,7 @@ pipeline {
                 }
             }
         }
-
+        
         stage("Remove Non-Latest Tags") {
             when {
                 expression { return env.NON_LATEST_TAGS != "" }
@@ -87,10 +87,8 @@ pipeline {
                 }
             }
         }
-
-
         
-        stage("Delete non-latest Images") {
+        stage("Delete Untagged Images") {
             steps {
                 script {
                     // Get list of all image digests
@@ -103,7 +101,7 @@ pipeline {
                         if (digest && digest != env.LATEST_DIGEST) {
                             echo "Deleting image: ${digest}"
                             try {
-                                sh "gcloud artifacts docker images delete ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}@${digest} --force  --quiet"
+                                sh "gcloud artifacts docker images delete ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}@${digest} --quiet"
                             } catch (Exception e) {
                                 echo "Warning: Could not delete image ${digest}. It might have tags or be referenced by another image."
                             }
@@ -119,13 +117,10 @@ pipeline {
             steps {
                 sh """
                 echo "Verifying remaining images and tags:"
-                gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}
-                gcloud artifacts docker tags list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}
+                gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} --include-list
+               
                 """
             }
         }
-        
-        
-        
     }
 }
