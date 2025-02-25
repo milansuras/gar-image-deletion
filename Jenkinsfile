@@ -9,12 +9,6 @@ pipeline {
     }
     
     stages {
-        stage('Initialize') {
-            steps {
-                sh 'echo "# Environment Properties" > env.properties'
-            }
-        }
-        
         stage("Process All Repositories") {
             steps {
                 script {
@@ -33,6 +27,9 @@ pipeline {
 
 // Function to process a single repository
 def processRepository(String imageName) {
+    def latestDigest = null
+    def nonLatestTags = ""
+    
     stage("List Images for ${imageName}") {
         sh """
         echo "Listing all images and tags for ${imageName}:"
@@ -64,14 +61,11 @@ def processRepository(String imageName) {
             
             if (latestTagLine) {
                 // Extract the digest from the line containing "latest"
-                def latestDigest = sh(
+                latestDigest = sh(
                     script: "echo '${latestTagLine}' | awk '{print \$2}'",
                     returnStdout: true
                 ).trim()
                 
-                // Use safe way to set env variables
-                def digestVarName = "${imageName.toUpperCase().replaceAll('-', '_')}_LATEST_DIGEST"
-                sh "echo '${digestVarName}=${latestDigest}' >> env.properties"
                 echo "Latest digest for ${imageName}: ${latestDigest}"
             } else {
                 echo "Warning: Could not find a 'latest' tag in repository ${imageName}. Skipping cleanup."
@@ -79,18 +73,16 @@ def processRepository(String imageName) {
             }
             
             // Find all non-latest tags
-            def nonLatestTags = sh(
+            nonLatestTags = sh(
                 script: "grep -v -w 'latest' ${outputFile} | grep -v '^TAG' | grep -v '^IMAGE' | grep -v '^-' | awk '{print \$3}'",
                 returnStdout: true
             ).trim()
             
-            def tagsVarName = "${imageName.toUpperCase().replaceAll('-', '_')}_NON_LATEST_TAGS"
             if (nonLatestTags) {
-                def formattedTags = nonLatestTags.replaceAll("\\s+", ",")
-                sh "echo '${tagsVarName}=${formattedTags}' >> env.properties"
-                echo "Non-latest tags for ${imageName}: ${formattedTags}"
+                nonLatestTags = nonLatestTags.replaceAll("\\s+", ",")
+                echo "Non-latest tags for ${imageName}: ${nonLatestTags}"
             } else {
-                sh "echo '${tagsVarName}=' >> env.properties"
+                nonLatestTags = ""
                 echo "No non-latest tags found for ${imageName}."
             }
         }
@@ -98,12 +90,6 @@ def processRepository(String imageName) {
     
     stage("Remove Non-Latest Tags for ${imageName}") {
         script {
-            def nonLatestTagsVar = "${imageName.toUpperCase().replaceAll('-', '_')}_NON_LATEST_TAGS"
-            
-            // Load variables from properties file
-            def props = readProperties file: 'env.properties'
-            def nonLatestTags = props[nonLatestTagsVar]
-            
             if (nonLatestTags && nonLatestTags != "") {
                 def tagsList = nonLatestTags.split(",")
                 for (tag in tagsList) {
@@ -122,12 +108,6 @@ def processRepository(String imageName) {
     
     stage("Delete Untagged Images for ${imageName}") {
         script {
-            def latestDigestVar = "${imageName.toUpperCase().replaceAll('-', '_')}_LATEST_DIGEST"
-            
-            // Load variables from properties file
-            def props = readProperties file: 'env.properties'
-            def latestDigest = props[latestDigestVar]
-            
             if (!latestDigest) {
                 echo "No latest digest defined for ${imageName}. Skipping untagged image cleanup."
                 return
