@@ -79,9 +79,11 @@ pipeline {
                 script {
                     def tagsList = env.NON_LATEST_TAGS.split(",")
                     for (tag in tagsList) {
-                        if (tag) {
+                        if (tag && tag != "TAGS" && tag != "TAG") {  // Skip header and "TAGS" string
                             echo "Removing tag: ${tag}"
                             sh "gcloud artifacts docker tags delete ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}:${tag} --quiet"
+                        } else if (tag == "TAGS" || tag == "TAG") {
+                            echo "Skipping header value: ${tag}"
                         }
                     }
                 }
