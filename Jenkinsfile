@@ -56,7 +56,7 @@ pipeline {
                     
                     // Find all non-latest tags
                     def nonLatestTags = sh(
-                        script: "grep -v -w 'latest' tags_output.txt | grep -v '^TAG' | awk '{print \$1}'",
+                        script: "grep -v -w 'latest' tags_output.txt | grep -v '^TAG' | awk '{print \$3}'",
                         returnStdout: true
                     ).trim()
                     
