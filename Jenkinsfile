@@ -70,6 +70,25 @@ pipeline {
                 }
             }
         }
+
+        stage("Remove Non-Latest Tags") {
+            when {
+                expression { return env.NON_LATEST_TAGS != "" }
+            }
+            steps {
+                script {
+                    def tagsList = env.NON_LATEST_TAGS.split(",")
+                    for (tag in tagsList) {
+                        if (tag) {
+                            echo "Removing tag: ${tag}"
+                            sh "gcloud artifacts docker tags delete ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}:${tag} --quiet"
+                        }
+                    }
+                }
+            }
+        }
+
+
         
         stage("Delete non-latest Images") {
             steps {
