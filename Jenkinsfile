@@ -13,7 +13,7 @@ pipeline {
             steps {
                 sh """
                 echo "Listing all images and tags:"
-                gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} --include-list 
+                gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} --include-tags 
                 gcloud artifacts docker tags list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}
                 """
             }
@@ -24,7 +24,7 @@ pipeline {
                 script {
                     // First, capture the output of the tags list command
                     def tagsOutput = sh(
-                        script: "gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} --include-list",
+                        script: "gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} --include-tags",
                         returnStdout: true
                     ).trim()
                     
