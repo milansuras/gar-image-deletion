@@ -119,7 +119,7 @@ pipeline {
             steps {
                 sh """
                 echo "Verifying remaining images and tags:"
-                gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} --include-list
+                gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} --include-tags
                
                 """
             }
