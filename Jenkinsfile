@@ -83,7 +83,11 @@ pipeline {
                     for (digest in allDigests) {
                         if (digest && digest != env.LATEST_DIGEST) {
                             echo "Deleting image: ${digest}"
-                            
+                            try {
+                                sh "gcloud artifacts docker images delete ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}@${digest} --quiet"
+                            } catch (Exception e) {
+                                echo "Warning: Could not delete image ${digest}. It might have tags or be referenced by another image."
+                            }
                         } else {
                             echo "Preserving latest image: ${digest}"
                         }
