@@ -71,6 +71,36 @@ pipeline {
             }
         }
         
+        stage("Delete non-latest Images") {
+            steps {
+                script {
+                    // Get list of all image digests
+                    def allDigests = sh(
+                        script: "gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE} --include-tag | grep -v '^IMAGE' | grep -v '^-' | awk '{print \$2}'",
+                        returnStdout: true
+                    ).trim().split("\n")
+                    
+                    for (digest in allDigests) {
+                        if (digest && digest != env.LATEST_DIGEST) {
+                            echo "Deleting image: ${digest}"
+                            
+                        } else {
+                            echo "Preserving latest image: ${digest}"
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage("Verify Results") {
+            steps {
+                sh """
+                echo "Verifying remaining images and tags:"
+                gcloud artifacts docker images list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}
+                gcloud artifacts docker tags list ${GAR_LOCATION}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}
+                """
+            }
+        }
         
         
         
